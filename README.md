@@ -85,4 +85,3 @@ GitHub: https://github.com/Vinicius-Infra
 
 Developed with ❤️ and Kotlin.
 
-///
