@@ -9,11 +9,11 @@ import org.springframework.web.client.RestTemplate
 import java.lang.Exception
 
 @Service
-class UserService(private val repository: UserRepository) {
-
-
-    @Value("\${api.audit.url:http://localhost:8082/audit/log}")
-    private lateinit var auditApiUrl: String
+class UserService(
+    private val repository: UserRepository,
+    @Value("\${api.audit.url:http://localhost:8083/audit/log}")
+    private val auditApiUrl: String = "http://localhost:8083/audit/log"
+) {
 
     fun findAll(): List<User> = repository.findAll()
 
