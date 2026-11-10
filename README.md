@@ -1,87 +1,129 @@
-# 🚀 Kotlin API Demo - Microservices
+# 🚀 User Management Service — Kotlin + Spring Boot + Kafka
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9.23-7F52FF?logo=kotlin)](https://kotlinlang.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.2.5-6DB33F?logo=spring-boot)](https://spring.io/projects/spring-boot)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql)](https://www.postgresql.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql)](https://www.postgresql.org/)
+[![Apache Kafka](https://img.shields.io/badge/Apache_Kafka-producer-231F20?logo=apachekafka)](https://kafka.apache.org/)
 [![Swagger](https://img.shields.io/badge/Documentation-Swagger-85EA2D?logo=swagger)](http://localhost:8080/swagger-ui/index.html)
 
-Esta é uma API REST robusta desenvolvida em **Kotlin** com **Spring Boot 3**, focada em boas práticas de desenvolvimento, validação de dados e documentação automatizada. O projeto serve como um boilerplate para microsserviços modernos.
+API REST de gerenciamento de usuários em **Kotlin** com **Spring Boot 3**. É o serviço de origem do meu ecossistema de microsserviços: cada operação gera um registro de auditoria, e cada usuário criado é publicado como evento no **Apache Kafka**.
 
 ---
 
-## 🛠️ Tecnologias e Ferramentas
+## 🧩 Onde este serviço se encaixa
 
-- **Linguagem:** [Kotlin](https://kotlinlang.org/) (JVM)
-- **Framework:** [Spring Boot 3.2.5](https://spring.io/projects/spring-boot)
-- **Persistência:** [Spring Data JPA](https://spring.io/projects/spring-data-jpa) & [Hibernate](https://hibernate.org/)
-- **Banco de Dados:** [PostgreSQL](https://www.postgresql.org/)
-- **Documentação:** [SpringDoc OpenAPI (Swagger)](https://springdoc.org/)
-- **Validação:** [Bean Validation (Jakarta)](https://beanvalidation.org/)
-- **Build Tool:** [Gradle (Kotlin DSL)](https://gradle.org/)
+```
+                    HTTP  POST /audit/log  (CREATE, UPDATE, DELETE)
+user-management  ─────────────────────────────────────────────►  audit-event-consumer (Java)
+  (Kotlin)
+                    Kafka  tópico audit-log-topic  (usuário criado)
+                 ─────────────────────────────────────────────►  consumidor em desenvolvimento
 
----
+infrastructure-health-monitor (Go) verifica a cada 10 s se os bancos estão online
+```
 
-## 🏗️ Arquitetura do Projeto
-
-O projeto segue a estrutura padrão de camadas do Spring, garantindo separação de responsabilidades:
-
-- `model`: Entidades JPA e regras de validação.
-- `repository`: Interfaces de comunicação com o banco de dados.
-- `service`: Camada de lógica de negócio e tratamento de exceções.
-- `controller`: Endpoints REST e documentação Swagger.
-- `exception`: Manipulador global de erros (Global Exception Handler).
-- `config`: Configurações de infraestrutura e OpenAPI.
+- [audit-event-consumer](https://github.com/Vinicius-Infra/audit-event-consumer) — auditoria em Java/Spring Boot
+- [infrastructure-health-monitor](https://github.com/Vinicius-Infra/infrastructure-health-monitor) — monitor de saúde em Go
 
 ---
 
-## 🚀 Como Rodar o Projeto
+## 🛠️ Tecnologias
+
+- **Linguagem:** Kotlin 1.9.23 (JVM, JDK 17+)
+- **Framework:** Spring Boot 3.2.5 (Web, Data JPA, Validation, Actuator)
+- **Persistência:** Spring Data JPA + Hibernate
+- **Banco de dados:** PostgreSQL 16
+- **Mensageria:** Spring Kafka (produtor)
+- **Documentação:** SpringDoc OpenAPI (Swagger)
+- **Testes:** JUnit 5, Mockito e Spring Boot Test (MockMvc)
+- **Build:** Gradle (Kotlin DSL)
+- **Infraestrutura local:** Docker Compose (PostgreSQL + Kafka em modo KRaft)
+
+---
+
+## 🏗️ Arquitetura
+
+Estrutura em camadas do Spring:
+
+- `model` — entidade JPA `User` com validação (nome obrigatório, e-mail válido)
+- `repository` — acesso ao PostgreSQL
+- `service` — regras de negócio e envio da auditoria (HTTP)
+- `service/KafkaProducerService` — publica eventos no tópico `audit-log-topic`
+- `controller` — endpoints REST documentados no Swagger
+- `exception` — `GlobalExceptionHandler` (400 para validação, 404 para usuário inexistente)
+- `config` — configuração do OpenAPI
+
+### Eventos publicados
+
+| Quando | Destino | Conteúdo |
+| --- | --- | --- |
+| Usuário criado, atualizado ou removido | `POST /audit/log` (HTTP) | `userId`, `userName`, `operation` |
+| Usuário criado | Kafka, tópico `audit-log-topic` | `Usuário criado: <nome> \| ID: <id>` |
+
+---
+
+## 🚀 Como rodar
 
 ### Pré-requisitos
 - JDK 17+
-- Docker & Docker Compose (Recomendado para o Banco de Dados)
+- Docker e Docker Compose
 
-### 1. Subir o Banco de Dados (PostgreSQL)
-Certifique-se de que o Postgres está rodando na porta `5434` conforme configurado no `application.yaml`:
+### 1. Subir PostgreSQL e Kafka
 ```bash
-docker run --name demo-db -e POSTGRES_USER=demo -e POSTGRES_PASSWORD=demo123 -e POSTGRES_DB=demo_db -p 5434:5432 -d postgres
+docker-compose up -d
+```
+- PostgreSQL: porta `5434`, banco `demo_db` (usuário `demo`, senha `demo123`)
+- Kafka: `localhost:9092`, com criação automática de tópicos
 
-
-2. Compilar e Executar
-
-
-# Limpar e compilar
-./gradlew clean compileKotlin
-
-# Executar a aplicação
+### 2. Executar a aplicação
+```bash
 ./gradlew bootRun
+```
+A API sobe em `http://localhost:8080`.
 
-A aplicação estará disponível em http://localhost:8080.
+Para o registro de auditoria via HTTP, suba também o [audit-event-consumer](https://github.com/Vinicius-Infra/audit-event-consumer) na porta `8083`. Se ele estiver fora do ar, a API continua funcionando e apenas registra a falha no log.
 
+---
 
-📖 Documentação da APICom a aplicação rodando, você pode acessar a interface interativa do Swagger para testar os endpoints:
+## 📖 Documentação da API
 
-🔗 Swagger UI: http://localhost:8080/swagger-ui/index.html
-📄 OpenAPI JSON: http://localhost:8080/v3/api-docs
+- Swagger UI: http://localhost:8080/swagger-ui.html
+- OpenAPI JSON: http://localhost:8080/v3/api-docs
+- Health check: http://localhost:8080/actuator/health
 
-🧪 Endpoints Principais
+### Endpoints
 
-Método        Endpoint                   Descrição
+| Método | Endpoint | Descrição |
+| --- | --- | --- |
+| GET | `/users` | Lista todos os usuários |
+| GET | `/users/{id}` | Busca um usuário por ID (404 se não existir) |
+| POST | `/users` | Cria um usuário (valida nome e e-mail) e publica o evento no Kafka |
+| PUT | `/users/{id}` | Atualiza um usuário existente |
+| DELETE | `/users/{id}` | Remove um usuário |
 
-GET           /users                     Lista todos os usuários.GET/users/{id}Busca um usuário por ID (retorna 404 se não existir).
-POST          /users                     Cria um novo usuário (Valida nome e e-mail).
-PUT           /users/{id}                Atualiza dados de um usuário existente.DELETE/users/{id}Remove um usuário do sistema.
+---
 
-🛡️ Tratamento de Erros e Validação
+## 🧪 Testes
 
-A API possui um Global Exception Handler que captura:
+```bash
+./gradlew test
+```
 
-MethodArgumentNotValidException: Retorna erro 400 com detalhes dos campos inválidos.
+- **`UserServiceTest`** — testes unitários da camada de serviço com Mockito (listar, buscar, erro de usuário inexistente, salvar e remover).
+- **`UserControllerIntegrationTest`** — testes de integração dos endpoints com `@SpringBootTest` e MockMvc (POST, GET, GET por ID, PUT e DELETE). Precisa do PostgreSQL e do Kafka rodando (`docker-compose up -d`).
 
-UserNotFoundException: Exceção personalizada que retorna erro 404.
+---
 
-Autor: Marcos Vinícius da Silva Barreto 
-LinkedIn: https://www.linkedin.com/in/vinicius-barreto-devops/  
-GitHub: https://github.com/Vinicius-Infra
+## 🔭 Próximos passos
+
+- Publicar todas as operações (CREATE, UPDATE, DELETE) no Kafka em formato JSON, substituindo a chamada HTTP.
+- Implementar o consumidor no audit-event-consumer com retry e Dead Letter Topic.
+- Usar Testcontainers nos testes de integração, para não depender de serviços rodando localmente.
+
+---
+
+**Autor:** Marcos Vinícius da Silva Barreto
+**LinkedIn:** [vinicius-barreto-tec](https://www.linkedin.com/in/vinicius-barreto-tec/)
+**GitHub:** [Vinicius-Infra](https://github.com/Vinicius-Infra)
 
 Developed with ❤️ and Kotlin.
-
