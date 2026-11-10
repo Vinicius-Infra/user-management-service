@@ -50,9 +50,9 @@ class UserServiceTest {
         assertEquals("Ana", result.name)
     }
 
-    @Test
+        @Test
     fun `delete deve chamar deleteById`() {
+        `when`(repository.findById(1L)).thenReturn(Optional.of(User(id = 1, name = "Ana", email = "ana@example.com")))
         service.delete(1L)
         verify(repository, times(1)).deleteById(1L)
     }
-}
